@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aplikasi Pengelolaan Uang Kas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#F3F4F6;color:#111827} .card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)} input,select,textarea{border:1px solid #D1D5DB;border-radius:10px;padding:10px 12px;width:100%;background:#fff;color:#111827;font-size:14px} .btn{border-radius:10px;padding:10px 14px;font-weight:600;font-size:14px} .btn-dark{background:#111827;color:#fff} .btn-green{background:#16A34A;color:#fff} .btn-red{background:#DC2626;color:#fff} .btn-gray{background:#E5E7EB;color:#111827} table{width:100%;border-collapse:collapse;font-size:13px} th{background:#1F2937;color:#fff;padding:8px;white-space:nowrap;text-align:left} td{padding:8px;border-bottom:1px solid #E5E7EB;white-space:nowrap} .navbtn{padding:8px 10px;border-radius:10px;font-size:13px;font-weight:600} .navbtn.active{background:#111827;color:#fff} .nowrap{white-space:nowrap}</style>
+</head><body>
+<div class="max-w-[720px] mx-auto px-3 pb-20">
+<header class="py-4 flex justify-between items-center"><div><h1 id="appTitle" class="text-xl font-bold">Kas RS PMI</h1><p class="text-xs text-gray-500">Pengelolaan Uang Kas • GitHub Pages + Firebase</p></div><span id="roleBadge" class="text-xs bg-black text-white px-3 py-1 rounded-full">ADMIN</span></header>
+
+<!-- LOGIN -->
+<div id="loginCard" class="card mb-3">
+<h2 class="font-bold">Masuk</h2><p class="text-xs text-gray-500 mb-3">Admin bisa edit semua. User hanya lihat & laporan. PIN default Admin: <span id="pinHint">1234</span></p>
+<div class="flex gap-2"><button onclick="setRole('admin')" class="btn btn-dark flex-1">Admin</button><button onclick="setRole('user')" class="btn btn-gray flex-1">User (Lihat)</button></div>
+<div id="pinBox" class="mt-3"><label class="text-xs font-semibold">PIN Admin</label><input id="pinInput" type="password" inputmode="numeric" placeholder="Masukkan PIN"><button onclick="loginAdmin()" class="btn btn-dark w-full mt-2">Masuk sebagai Admin</button><p class="text-[11px] text-gray-500 mt-1">Lupa? PIN bisa di-reset di Pengaturan setelah login Admin. Default 1234.</p></div>
+</div>
+
+<!-- NAV -->
+<div class="flex gap-1 overflow-x-auto mb-3 bg-white p-1 rounded-xl shadow-sm">
+<button class="navbtn active" onclick="show('home',this)">Home</button><button class="navbtn" onclick="show('iuran',this)">Iuran</button><button class="navbtn" onclick="show('transaksi',this)">Transaksi</button><button class="navbtn" onclick="show('laporan',this)">Laporan</button><button class="navbtn" onclick="show('pengaturan',this)">Pengaturan</button>
+</div>
+
+<!-- HOME -->
+<div id="page-home">
+<div class="grid grid-cols-3 gap-2 mb-3">
+<div class="card text-center"><p class="text-[11px] text-gray-500">SALDO</p><p id="saldoTxt" class="font-bold text-[15px]">Rp 0</p></div>
+<div class="card text-center"><p class="text-[11px] text-gray-500">MASUK</p><p id="masukTxt" class="font-bold text-green-600 text-[15px]">Rp 0</p></div>
+<div class="card text-center"><p class="text-[11px] text-gray-500">KELUAR</p><p id="keluarTxt" class="font-bold text-red-600 text-[15px]">Rp 0</p></div>
+</div>
+<div class="card mb-3"><h3 class="font-bold mb-2">Ringkasan Bulan Ini <span id="bulanLabel"></span></h3><p id="iuranSummary" class="text-sm"></p><div id="homeMembers" class="mt-2 text-sm"></div></div>
+<div class="card"><h3 class="font-bold mb-2">Transaksi Terakhir</h3><div id="recentTx" class="text-sm"></div></div>
+</div>
+
+<!-- IURAN -->
+<div id="page-iuran" class="hidden">
+<div class="card mb-3"><div class="flex gap-2"><label class="text-sm font-semibold pt-2">Bulan:</label><input id="iuranBulan" type="month" class="flex-1"><button onclick="render()" class="btn btn-dark">Tampilkan</button></div></div>
+<div class="card"><h3 class="font-bold">Daftar Iuran — <span id="iuranBulanLabel"></span></h3><p class="text-xs text-gray-500">Nilai iuran acuan: <b id="nilaiIuranTxt"></b> • Klik Lunas untuk tandai sudah bayar, otomatis masuk ke Pemasukan.</p><div class="overflow-x-auto mt-2"><table><thead><tr><th>No</th><th>Nama Anggota</th><th>Nilai Iuran</th><th>Tgl Bayar</th><th>Status</th><th>Aksi</th></tr></thead><tbody id="iuranBody"></tbody></table></div><p id="iuranTotal" class="font-bold text-sm mt-2"></p></div>
+</div>
+
+<!-- TRANSAKSI -->
+<div id="page-transaksi" class="hidden">
+<div class="card mb-3"><h3 class="font-bold mb-2">Tambah Transaksi</h3>
+<div class="grid grid-cols-2 gap-2"><input id="txTanggal" type="date"><select id="txJenis"><option value="masuk">Pemasukan</option><option value="keluar">Pengeluaran</option></select><input id="txKet" placeholder="Keterangan, contoh: Beli Air Galon"><select id="txKat"><option>Konsumsi</option><option>ATK</option><option>Iuran</option><option>Lainnya</option></select><input id="txJumlah" type="number" placeholder="Jumlah Rp"></div>
+<button onclick="addTx()" class="btn btn-dark w-full mt-2">Simpan Transaksi</button></div>
+<div class="card"><h3 class="font-bold">Semua Transaksi</h3><div class="overflow-x-auto"><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Kategori</th><th>Jumlah</th><th>Aksi</th></tr></thead><tbody id="txBody"></tbody></table></div></div>
+</div>
+
+<!-- LAPORAN -->
+<div id="page-laporan" class="hidden">
+<div class="card mb-3"><h3 class="font-bold mb-2">Filter Laporan</h3>
+<div class="flex gap-2 mb-2"><button onclick="setFilter('bulan')" class="btn btn-gray flex-1">Per Bulan</button><button onclick="setFilter('multi')" class="btn btn-gray flex-1">Multi Bulan</button><button onclick="setFilter('tanggal')" class="btn btn-gray flex-1">Tanggal Tertentu</button></div>
+<div id="filterBulan"><input id="lapBulan" type="month"></div>
+<div id="filterMulti" class="hidden"><div class="flex gap-2"><input id="lapDari" type="month"><input id="lapSampai" type="month"></div></div>
+<div id="filterTanggal" class="hidden"><input id="lapTanggal" type="date"></div>
+<button onclick="renderLaporan()" class="btn btn-dark w-full mt-3">Tampilkan Laporan</button></div>
+<div id="laporanHasil" class="card"></div>
+<div class="flex gap-2 mt-3"><button onclick="downloadPDF()" class="btn btn-dark flex-1">Download PDF</button><button onclick="downloadExcel()" class="btn btn-green flex-1">Download Excel</button></div>
+</div>
+
+<!-- PENGATURAN -->
+<div id="page-pengaturan" class="hidden">
+<div class="card mb-3"><h3 class="font-bold">Pengaturan Kas</h3>
+<label class="text-xs">Nama Kas</label><input id="setNamaKas" class="mb-2">
+<label class="text-xs">Nilai Iuran Acuan (Rp)</label><input id="setNilaiIuran" type="number" class="mb-2">
+<button onclick="saveSettings()" class="btn btn-dark w-full">Simpan Pengaturan</button></div>
+
+<div class="card mb-3"><h3 class="font-bold">Anggota</h3><div class="flex gap-2"><input id="newMember" placeholder="Nama anggota baru"><button onclick="addMember()" class="btn btn-dark">Tambah</button></div><div id="memberList" class="mt-2 text-sm"></div></div>
+
+<div class="card mb-3"><h3 class="font-bold">PIN Admin</h3><p id="pinStatus" class="text-xs text-gray-600 mb-2"></p><input id="newPin" placeholder="PIN baru (4 digit)" class="mb-2"><button onclick="changePin()" class="btn btn-dark w-full mb-2">Ganti PIN</button><button onclick="resetPin()" class="btn btn-gray w-full">Reset PIN ke Default (1234)</button></div>
+
+<div class="card mb-3"><h3 class="font-bold">Backup & Restore</h3><p class="text-xs text-gray-500 mb-2">Backup menyimpan semua data ke file JSON. Restore mengganti data saat ini dengan isi file backup.</p><button onclick="backupData()" class="btn btn-dark w-full mb-2">Download Backup (.json)</button><input id="restoreFile" type="file" accept=".json" class="mb-2"><button onclick="restoreData()" class="btn btn-gray w-full">Restore Data</button></div>
+
+<div class="card mb-3"><h3 class="font-bold">Koneksi Firebase ✅ Config Sudah Ditanam</h3><p class="text-xs text-green-600 font-semibold mb-1">Config Firebase sudah tertanam di kode — tinggal upload langsung konek ke aplikasi-kas-81584. Tidak perlu isi manual lagi.</p><p id="fbStatus" class="text-xs mb-2">Status: Belum Terkoneksi (Pakai LocalStorage)</p>
+<input id="fbApiKey" placeholder="apiKey"><input id="fbAuthDomain" placeholder="authDomain" class="mt-1"><input id="fbProjectId" placeholder="projectId *wajib" class="mt-1"><input id="fbStorageBucket" placeholder="storageBucket" class="mt-1"><input id="fbSenderId" placeholder="messagingSenderId" class="mt-1"><input id="fbAppId" placeholder="appId" class="mt-1">
+<label class="text-xs flex gap-2 mt-2"><input id="fbUse" type="checkbox" style="width:auto"> Gunakan Firebase untuk simpan data</label>
+<button onclick="saveFirebase()" class="btn btn-dark w-full mt-2">Simpan & Koneksikan ke Firebase</button>
+<button onclick="syncFirebase(true)" class="btn btn-green w-full mt-2">Sync Sekarang ke Firebase</button>
+<button onclick="checkFirebase()" class="btn btn-gray w-full mt-2">Cek Data Tersimpan di Firebase</button>
+<button onclick="disconnectFirebase()" class="btn btn-gray w-full mt-2">Putuskan Koneksi Firebase</button>
+<div id="fbCheck" class="text-sm mt-2"></div>
+<div class="bg-yellow-50 p-2 rounded mt-2 text-[11px]">Kalau muncul <b>permission-denied</b>, di Firebase Console &gt; Firestore &gt; Rules, ganti jadi <b>allow read, write: if true;</b> lalu Publish, lalu klik Sync Sekarang lagi.</div></div>
+<div class="card"><h3 class="font-bold">Tentang</h3><p class="text-xs text-gray-500">Versi GitHub Pages. Data tersimpan di LocalStorage browser ini + opsional Firebase Firestore (collection kas_data / doc utama). PIN default 1234.</p></div>
+</div>
+</div>
+
+<script>
+// ===== CONFIG FIREBASE - SUDAH DITANAM, TINGGAL UPLOAD LANGSUNG KONEK =====
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDW7Hk3kHX37mj66qT7zWhFknon2kV54l8",
+  authDomain: "aplikasi-kas-81584.firebaseapp.com",
+  projectId: "aplikasi-kas-81584",
+  storageBucket: "aplikasi-kas-81584.firebasestorage.app",
+  messagingSenderId: "731899934815",
+  appId: "1:731899934815:web:194b7bd0c68d5c7fb6c3ea",
+  measurementId: "G-1QJT7J0799",
+  use: true
+};
+let DB_KEY='kasData_v1';
+let data = JSON.parse(localStorage.getItem(DB_KEY)||'null') || {namaKas:'Kas RS PMI', nilaiIuran:10000, members:[{id:1,name:'Budi Santoso'},{id:2,name:'Citra Lestari'}], tx:[{id:1,tanggal:'2026-11-18',ket:'ada uang kaget',kat:'Lainnya',jenis:'masuk',jumlah:1000000},{id:2,tanggal:'2026-11-05',ket:'Beli Air Galon',kat:'Konsumsi',jenis:'keluar',jumlah:45000},{id:3,tanggal:'2026-11-10',ket:'Fotocopy Laporan',kat:'ATK',jenis:'keluar',jumlah:25000}], iuran:{}, pin:'1234', pinChanged:false, firebase:{apiKey:"AIzaSyDW7Hk3kHX37mj66qT7zWhFknon2kV54l8",authDomain:"aplikasi-kas-81584.firebaseapp.com",projectId:"aplikasi-kas-81584",storageBucket:"aplikasi-kas-81584.firebasestorage.app",messagingSenderId:"731899934815",appId:"1:731899934815:web:194b7bd0c68d5c7fb6c3ea",measurementId:"G-1QJT7J0799",use:true}};
+let role='admin'; let filterMode='bulan';
+function save(){localStorage.setItem(DB_KEY, JSON.stringify(data)); render(); if(data.firebase && data.firebase.use) syncFirebase(false);}
+function fmt(n){return 'Rp'+Number(n||0).toLocaleString('id-ID')}
+function todayStr(){return new Date().toISOString().slice(0,10)}
+function monthVal(){return document.getElementById('iuranBulan').value || new Date().toISOString().slice(0,7)}
+function setRole(r){role=r; document.getElementById('roleBadge').textContent=r.toUpperCase(); document.getElementById('pinBox').style.display = r==='admin'?'block':'none'; if(r==='user') alert('Mode User: hanya lihat & laporan, tidak bisa edit.'); render();}
+function loginAdmin(){ if(document.getElementById('pinInput').value===data.pin){alert('Login Admin berhasil'); render();} else alert('PIN salah'); }
+function show(page,btn){ document.querySelectorAll('[id^="page-"]').forEach(e=>e.classList.add('hidden')); document.getElementById('page-'+page).classList.remove('hidden'); document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active'); if(page==='pengaturan' && role!=='admin'){alert('Pengaturan hanya untuk Admin'); show('home',null);} }
+function setFilter(m){filterMode=m; document.getElementById('filterBulan').classList.toggle('hidden',m!=='bulan'); document.getElementById('filterMulti').classList.toggle('hidden',m!=='multi'); document.getElementById('filterTanggal').classList.toggle('hidden',m!=='tanggal');}
+function render(){
+ document.getElementById('appTitle').textContent=data.namaKas;
+ document.getElementById('bulanLabel').textContent = monthVal();
+ document.getElementById('setNamaKas').value=data.namaKas; document.getElementById('setNilaiIuran').value=data.nilaiIuran;
+ document.getElementById('pinStatus').textContent = data.pinChanged ? 'Status PIN: PIN sudah diubah (bukan default lagi)' : 'Status PIN: Masih PIN default 1234';
+ document.getElementById('pinHint').textContent = data.pinChanged ? 'PIN sudah diubah' : '1234';
+ let masuk=data.tx.filter(t=>t.jenis==='masuk').reduce((a,b)=>a+b.jumlah,0); let keluar=data.tx.filter(t=>t.jenis==='keluar').reduce((a,b)=>a+b.jumlah,0);
+ document.getElementById('saldoTxt').textContent=fmt(masuk-keluar); document.getElementById('masukTxt').textContent=fmt(masuk); document.getElementById('keluarTxt').textContent=fmt(keluar);
+ let m=monthVal(); let key=m; let iur=data.iuran[key]||{};
+ let lunas=data.members.filter(mem=>iur[mem.id]?.status==='Lunas').length;
+ document.getElementById('iuranSummary').textContent = `Iuran ${m}: ${lunas} Lunas dari ${data.members.length} anggota • Total terkumpul ${fmt(lunas*data.nilaiIuran)} dari ${fmt(data.members.length*data.nilaiIuran)}`;
+ document.getElementById('iuranBulanLabel').textContent=m; document.getElementById('nilaiIuranTxt').textContent=fmt(data.nilaiIuran);
+ document.getElementById('iuranBody').innerHTML=data.members.map((mem,i)=>{
+   let st=iur[mem.id]||{status:'Belum Lunas',tgl:''};
+   return `<tr><td>${i+1}</td><td>${mem.name}</td><td>${fmt(data.nilaiIuran)}</td><td>${st.tgl||'-'}</td><td>${st.status==='Lunas'?'<span class="text-green-600 font-bold">Lunas</span>':'<span class="text-red-600">Belum</span>'}</td><td>${role==='admin'?`<button onclick="toggleIuran(${mem.id})" class="btn ${st.status==='Lunas'?'btn-gray':'btn-green'} !py-1 !px-2 text-xs">${st.status==='Lunas'?'Batalkan':'Tandai Lunas'}</button>`:''}</td></tr>`
+ }).join('');
+ document.getElementById('iuranTotal').textContent=`Total Terkumpul: ${fmt(lunas*data.nilaiIuran)} dari ${fmt(data.members.length*data.nilaiIuran)}`;
+ document.getElementById('homeMembers').innerHTML=data.members.map(mem=>{let st=(data.iuran[m]||{})[mem.id]; return `<div class="flex justify-between border-b py-1"><span>${mem.name}</span><span>${st?.status==='Lunas'?'✅ Lunas':'⏳ Belum'}</span></div>`}).join('');
+ document.getElementById('recentTx').innerHTML=data.tx.slice(-5).reverse().map(t=>`<div class="flex justify-between border-b py-1"><span>${t.tanggal} • ${t.ket}</span><b class="${t.jenis==='masuk'?'text-green-600':'text-red-600'}">${t.jenis==='masuk'?'+':'-'} ${fmt(t.jumlah)}</b></div>`).join('')||'Belum ada transaksi';
+ document.getElementById('txBody').innerHTML=data.tx.slice().reverse().map(t=>`<tr><td>${t.tanggal}</td><td>${t.ket}</td><td>${t.kat}</td><td class="${t.jenis==='masuk'?'text-green-600':'text-red-600'} font-bold">${t.jenis==='masuk'?'+':'-'} ${fmt(t.jumlah)}</td><td>${role==='admin'?`<button onclick="delTx(${t.id})" class="btn btn-red !py-1 !px-2 text-xs">Hapus</button>`:''}</td></tr>`).join('');
+ document.getElementById('memberList').innerHTML=data.members.map(mem=>`<div class="flex justify-between border-b py-1"><span>${mem.name}</span>${role==='admin'?`<span><button onclick="editMember(${mem.id})" class="text-blue-600 mr-2">Edit</button><button onclick="delMember(${mem.id})" class="text-red-600">Hapus</button></span>`:''}</div>`).join('');
+ if(!data.firebase){ data.firebase={...FIREBASE_CONFIG}; localStorage.setItem(DB_KEY, JSON.stringify(data)); }
+ if(data.firebase){ document.getElementById('fbApiKey').value=data.firebase.apiKey||''; document.getElementById('fbAuthDomain').value=data.firebase.authDomain||''; document.getElementById('fbProjectId').value=data.firebase.projectId||''; document.getElementById('fbStorageBucket').value=data.firebase.storageBucket||''; document.getElementById('fbSenderId').value=data.firebase.messagingSenderId||''; document.getElementById('fbAppId').value=data.firebase.appId||''; document.getElementById('fbUse').checked=!!data.firebase.use; document.getElementById('fbStatus').textContent = data.firebase.use ? `Status: Terkoneksi ke Firebase - Project: ${data.firebase.projectId}` : 'Status: Belum Terkoneksi (Pakai LocalStorage)'; }
+ document.getElementById('txTanggal').value = document.getElementById('txTanggal').value || todayStr();
+ renderLaporan(true);
+}
+function toggleIuran(id){ if(role!=='admin') return alert('Hanya Admin'); let m=monthVal(); data.iuran[m]=data.iuran[m]||{}; let cur=data.iuran[m][id];
+ if(cur?.status==='Lunas'){ delete data.iuran[m][id]; // hapus transaksi iuran terkait
+   data.tx = data.tx.filter(t=> !(t.ket===`Iuran ${data.members.find(x=>x.id===id)?.name}` && t.tanggal===cur.tgl));
+ } else { let tgl=todayStr(); data.iuran[m][id]={status:'Lunas',tgl}; let mem=data.members.find(x=>x.id===id); data.tx.push({id:Date.now(),tanggal:tgl,ket:`Iuran ${mem.name}`,kat:'Iuran',jenis:'masuk',jumlah:data.nilaiIuran}); }
+ save(); }
+function addTx(){ if(role!=='admin') return alert('Hanya Admin'); let t={id:Date.now(),tanggal:document.getElementById('txTanggal').value||todayStr(),ket:document.getElementById('txKet').value||'-',kat:document.getElementById('txKat').value,jenis:document.getElementById('txJenis').value,jumlah:Number(document.getElementById('txJumlah').value||0)}; if(!t.jumlah) return alert('Isi jumlah'); data.tx.push(t); document.getElementById('txKet').value=''; document.getElementById('txJumlah').value=''; save(); }
+function delTx(id){ if(confirm('Hapus transaksi ini?')){ data.tx=data.tx.filter(t=>t.id!==id); save(); } }
+function addMember(){ let n=document.getElementById('newMember').value.trim(); if(!n) return; data.members.push({id:Date.now(),name:n}); document.getElementById('newMember').value=''; save(); }
+function editMember(id){ let m=data.members.find(x=>x.id===id); let n=prompt('Edit nama anggota',m.name); if(n){m.name=n; save();} }
+function delMember(id){ if(!confirm('Hapus anggota? Iuran & saldonya ikut terhapus / disesuaikan.')) return; let mem=data.members.find(x=>x.id===id); data.members=data.members.filter(x=>x.id!==id); // hapus iuran & transaksi iuran anggota itu
+ for(let k in data.iuran) delete data.iuran[k][id];
+ data.tx=data.tx.filter(t=>t.ket!==`Iuran ${mem.name}`); save(); }
+function saveSettings(){ data.namaKas=document.getElementById('setNamaKas').value||data.namaKas; data.nilaiIuran=Number(document.getElementById('setNilaiIuran').value||data.nilaiIuran); save(); alert('Pengaturan tersimpan'); }
+function changePin(){ let p=document.getElementById('newPin').value; if(p.length<4) return alert('PIN minimal 4 digit'); data.pin=p; data.pinChanged=true; save(); alert('PIN berhasil diubah'); }
+function resetPin(){ if(confirm('Reset PIN ke 1234?')){ data.pin='1234'; data.pinChanged=false; save(); alert('PIN kembali ke 1234'); } }
+function backupData(){ let blob=new Blob([JSON.stringify({app:'Kas',tanggal:new Date().toISOString(),data},null,2)],{type:'application/json'}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`Backup-Kas-${new Date().toISOString().slice(0,10)}.json`; a.click(); alert('Backup berhasil di-download'); }
+function restoreData(){ let f=document.getElementById('restoreFile').files[0]; if(!f) return alert('Pilih file backup dulu'); let r=new FileReader(); r.onload=()=>{ try{ let j=JSON.parse(r.result); let d=j.data||j; if(!d.members||!d.tx) throw 0; if(!confirm('Yakin restore? Data saat ini akan diganti.')) return; data=d; save(); alert('Restore berhasil'); }catch(e){ alert('File backup tidak valid'); } }; r.readAsText(f); }
+function getFiltered(){
+ let tx=data.tx.slice(); let label='';
+ if(filterMode==='bulan'){ let m=document.getElementById('lapBulan').value||new Date().toISOString().slice(0,7); label=`Periode: ${m}`; tx=tx.filter(t=>t.tanggal.slice(0,7)===m); }
+ else if(filterMode==='multi'){ let a=document.getElementById('lapDari').value, b=document.getElementById('lapSampai').value; label=`Periode: ${a} s/d ${b}`; tx=tx.filter(t=>t.tanggal.slice(0,7)>=a && t.tanggal.slice(0,7)<=b); }
+ else { let d=document.getElementById('lapTanggal').value||todayStr(); label=`Tanggal: ${d}`; tx=tx.filter(t=>t.tanggal===d); }
+ return {tx,label};
+}
+function renderLaporan(silent){
+ let {tx,label}=getFiltered(); let masuk=tx.filter(t=>t.jenis==='masuk').reduce((a,b)=>a+b.jumlah,0); let keluar=tx.filter(t=>t.jenis==='keluar').reduce((a,b)=>a+b.jumlah,0);
+ let m=monthVal(); let iur=data.iuran[m]||{}; let lunas=data.members.filter(mem=>iur[mem.id]?.status==='Lunas').length;
+ document.getElementById('laporanHasil').innerHTML=`<h3 class="font-bold text-center">LAPORAN UANG KAS</h3><p class="text-center text-sm">${data.namaKas}</p><p class="text-center text-xs">${label} • Dibuat: ${new Date().toLocaleDateString('id-ID')}</p>
+ <div class="grid grid-cols-3 gap-2 my-3 text-center"><div class="bg-gray-100 p-2 rounded"><p class="text-[11px]">Total Pemasukan</p><b>${fmt(masuk)}</b></div><div class="bg-gray-100 p-2 rounded"><p class="text-[11px]">Total Pengeluaran</p><b>${fmt(keluar)}</b></div><div class="bg-black text-white p-2 rounded"><p class="text-[11px]">Saldo Akhir</p><b>${fmt(masuk-keluar)}</b></div></div>
+ <p class="text-xs">Saldo Awal periode: Rp 0</p><h4 class="font-bold mt-2">1. RINCIAN IURAN</h4><div class="overflow-x-auto"><table><thead><tr><th>No</th><th>Nama Anggota</th><th>Nilai Iuran</th><th>Tgl Bayar</th><th>Status</th></tr></thead><tbody>${data.members.map((mem,i)=>{let s=iur[mem.id]; return `<tr><td>${i+1}</td><td>${mem.name}</td><td>${fmt(data.nilaiIuran)}</td><td>${s?.tgl||'-'}</td><td>${s?.status||'Belum Lunas'}</td></tr>`}).join('')}</tbody></table></div><p class="text-xs font-bold mt-1">Total Terkumpul: ${fmt(lunas*data.nilaiIuran)} dari ${fmt(data.members.length*data.nilaiIuran)}</p>
+ <h4 class="font-bold mt-3">2. RINCIAN TRANSAKSI PEMASUKAN</h4><div class="overflow-x-auto"><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Kategori</th><th>Jumlah</th></tr></thead><tbody>${tx.filter(t=>t.jenis==='masuk').map(t=>`<tr><td>${t.tanggal}</td><td>${t.ket}</td><td>${t.kat}</td><td>+ ${fmt(t.jumlah)}</td></tr>`).join('')||'<tr><td colspan=4>Tidak ada</td></tr>'}</tbody></table></div><p class="text-xs font-bold">Total Pemasukan: + ${fmt(masuk)}</p>
+ <h4 class="font-bold mt-3">3. RINCIAN TRANSAKSI PENGELUARAN</h4><div class="overflow-x-auto"><table><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Kategori</th><th>Jumlah</th></tr></thead><tbody>${tx.filter(t=>t.jenis==='keluar').map(t=>`<tr><td>${t.tanggal}</td><td>${t.ket}</td><td>${t.kat}</td><td>- ${fmt(t.jumlah)}</td></tr>`).join('')||'<tr><td colspan=4>Tidak ada</td></tr>'}</tbody></table></div><p class="text-xs font-bold">Total Pengeluaran: - ${fmt(keluar)}</p>
+ <h4 class="font-bold mt-3">4. PERHITUNGAN SALDO AKHIR</h4><p class="text-sm">Saldo Awal: Rp 0<br>+ Penambahan (Total Pemasukan): ${fmt(masuk)}<br>- Pengeluaran (Total Pengeluaran): ${fmt(keluar)}<br><b>Saldo Akhir = Rp 0 + ${fmt(masuk)} - ${fmt(keluar)} = ${fmt(masuk-keluar)}</b></p>`;
+}
+function downloadPDF(){
+ let {tx,label}=getFiltered(); let {jsPDF}=window.jspdf; let doc=new jsPDF(); doc.setFontSize(16); doc.text('LAPORAN UANG KAS',105,15,{align:'center'}); doc.setFontSize(11); doc.text(data.namaKas,105,22,{align:'center'}); doc.text(label,105,28,{align:'center'}); doc.text('Tanggal Dibuat: '+new Date().toLocaleDateString('id-ID'),105,34,{align:'center'});
+ let masuk=tx.filter(t=>t.jenis==='masuk').reduce((a,b)=>a+b.jumlah,0); let keluar=tx.filter(t=>t.jenis==='keluar').reduce((a,b)=>a+b.jumlah,0);
+ doc.autoTable({startY:40, head:[['Total Pemasukan','Total Pengeluaran','Saldo Akhir']], body:[[fmt(masuk),fmt(keluar),fmt(masuk-keluar)]]});
+ let m=monthVal(); let iur=data.iuran[m]||{};
+ doc.text('1. RINCIAN IURAN',14, doc.lastAutoTable.finalY+10);
+ doc.autoTable({startY:doc.lastAutoTable.finalY+12, head:[['No','Nama Anggota','Nilai Iuran','Tgl Bayar','Status']], body:data.members.map((mem,i)=>[i+1,mem.name,fmt(data.nilaiIuran),iur[mem.id]?.tgl||'-',iur[mem.id]?.status||'Belum Lunas'])});
+ doc.text('2. PEMASUKAN',14, doc.lastAutoTable.finalY+10);
+ doc.autoTable({startY:doc.lastAutoTable.finalY+12, head:[['Tanggal','Keterangan','Kategori','Jumlah']], body:tx.filter(t=>t.jenis==='masuk').map(t=>[t.tanggal,t.ket,t.kat,'+ '+fmt(t.jumlah)])});
+ doc.text('3. PENGELUARAN',14, doc.lastAutoTable.finalY+10);
+ doc.autoTable({startY:doc.lastAutoTable.finalY+12, head:[['Tanggal','Keterangan','Kategori','Jumlah']], body:tx.filter(t=>t.jenis==='keluar').map(t=>[t.tanggal,t.ket,t.kat,'- '+fmt(t.jumlah)])});
+ doc.text(`Saldo Akhir = Rp 0 + ${fmt(masuk)} - ${fmt(keluar)} = ${fmt(masuk-keluar)}`,14, doc.lastAutoTable.finalY+10);
+ doc.save(`Laporan-Kas-${label.replace(/[^A-Za-z0-9]/g,'-')}.pdf`);
+}
+function downloadExcel(){
+ let {tx,label}=getFiltered(); let masuk=tx.filter(t=>t.jenis==='masuk').reduce((a,b)=>a+b.jumlah,0); let keluar=tx.filter(t=>t.jenis==='keluar').reduce((a,b)=>a+b.jumlah,0);
+ let m=monthVal(); let iur=data.iuran[m]||{};
+ let aoa=[
+  ['LAPORAN UANG KAS'],[data.namaKas],[label],['Tanggal Dibuat: '+new Date().toLocaleDateString('id-ID')],[],
+  ['Total Pemasukan','Total Pengeluaran','Saldo Akhir'],[fmt(masuk),fmt(keluar),fmt(masuk-keluar)],[],
+  ['Saldo Awal periode: Rp 0'],[],
+  ['1. RINCIAN IURAN'],['No','Nama Anggota','Nilai Iuran','Tgl Bayar','Status'],
+  ...data.members.map((mem,i)=>[i+1,mem.name,fmt(data.nilaiIuran),iur[mem.id]?.tgl||'-',iur[mem.id]?.status||'Belum Lunas']),
+  ['Total Terkumpul','','',`Rp ${(Object.values(iur).filter(x=>x.status==='Lunas').length*data.nilaiIuran).toLocaleString('id-ID')} dari ${fmt(data.members.length*data.nilaiIuran)}`],[],
+  ['2. RINCIAN TRANSAKSI PEMASUKAN'],['Tanggal','Keterangan','Kategori','Jumlah'],
+  ...tx.filter(t=>t.jenis==='masuk').map(t=>[t.tanggal,t.ket,t.kat,'+ '+fmt(t.jumlah)]),
+  ['Total Pemasukan','','','+ '+fmt(masuk)],[],
+  ['3. RINCIAN TRANSAKSI PENGELUARAN'],['Tanggal','Keterangan','Kategori','Jumlah'],
+  ...tx.filter(t=>t.jenis==='keluar').map(t=>[t.tanggal,t.ket,t.kat,'- '+fmt(t.jumlah)]),
+  ['Total Pengeluaran','','','- '+fmt(keluar)],[],
+  ['4. PERHITUNGAN SALDO AKHIR'],['Saldo Awal','Rp 0'],['+ Penambahan (Total Pemasukan)',fmt(masuk)],['- Pengeluaran (Total Pengeluaran)',fmt(keluar)],[`Saldo Akhir = Rp 0 + ${fmt(masuk)} - ${fmt(keluar)} = ${fmt(masuk-keluar)}`]
+ ];
+ let ws=XLSX.utils.aoa_to_sheet(aoa);
+ ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}},{s:{r:1,c:0},e:{r:1,c:4}},{s:{r:2,c:0},e:{r:2,c:4}},{s:{r:3,c:0},e:{r:3,c:4}}];
+ // auto width
+ let cols=[]; aoa.forEach(row=>{ row.forEach((c,i)=>{ let len=String(c||'').length; cols[i]=Math.max(cols[i]||14, Math.min(45,len+4)); }); }); ws['!cols']=cols.map(w=>({wch:w}));
+ let wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Laporan Kas'); XLSX.writeFile(wb,`Laporan-Kas-${label.replace(/[^A-Za-z0-9]/g,'-')}.xlsx`);
+}
+// Firebase
+function getFbConfig(){ let v=id=>document.getElementById(id).value.trim(); if(!v('fbApiKey') && !v('fbProjectId')) return {...FIREBASE_CONFIG, use:document.getElementById('fbUse').checked||true}; return {apiKey:v('fbApiKey'), authDomain:document.getElementById('fbAuthDomain').value.trim(), projectId:document.getElementById('fbProjectId').value.trim(), storageBucket:document.getElementById('fbStorageBucket').value.trim(), messagingSenderId:document.getElementById('fbSenderId').value.trim(), appId:document.getElementById('fbAppId').value.trim(), use:document.getElementById('fbUse').checked}; }
+function initFb(cfg){ if(!window.firebase) return null; try{ if(!firebase.apps.length) firebase.initializeApp(cfg); else if(firebase.apps[0].options.projectId!==cfg.projectId){ firebase.app().delete().then(()=>firebase.initializeApp(cfg)); } return firebase.firestore(); }catch(e){ console.error(e); return null; } }
+function saveFirebase(){ let cfg=getFbConfig(); if(!cfg.projectId) return alert('Project ID wajib diisi'); data.firebase=cfg; localStorage.setItem(DB_KEY,JSON.stringify(data)); document.getElementById('fbStatus').textContent='Status: Terkoneksi ke Firebase - Project: '+cfg.projectId; syncFirebase(true); }
+function syncFirebase(showMsg){
+ if(!data.firebase || !data.firebase.use){ if(showMsg) alert('Aktifkan dulu "Gunakan Firebase"'); return; }
+ let db=initFb(data.firebase); if(!db){ if(showMsg) alert('Gagal init Firebase, cek config'); return; }
+ db.collection('kas_data').doc('utama').set({...data, updatedAt: firebase.firestore.FieldValue.serverTimestamp()}).then(()=>{ document.getElementById('fbStatus').textContent='Status: Terkoneksi ke Firebase - Project: '+data.firebase.projectId+' • Terakhir Sync: '+new Date().toLocaleString('id-ID'); if(showMsg) alert('Data berhasil dikirim ke Firebase. Cek di Firestore > kas_data > utama'); }).catch(e=>{ if(showMsg) alert('Gagal sync ke Firebase: '+e.message+' — Cek Rules Firestore, harus allow read, write: if true;'); else console.error(e); });
+}
+function checkFirebase(){
+ if(!data.firebase) return alert('Isi config Firebase dulu');
+ let db=initFb(data.firebase); if(!db) return alert('Gagal init Firebase');
+ db.collection('kas_data').doc('utama').get().then(doc=>{
+   if(!doc.exists){ document.getElementById('fbCheck').innerHTML='<b>Belum ada data di Firebase.</b> Klik Sync Sekarang lagi.'; return; }
+   let d=doc.data(); let m=monthVal(); let iur=d.iuran?.[m]||{}; let lunas=Object.values(iur).filter(x=>x.status==='Lunas').length;
+   document.getElementById('fbCheck').innerHTML=`<b>Data ditemukan di Firebase ✅</b><br>Nama Kas: ${d.namaKas}<br>Jumlah Anggota: ${d.members?.length} orang<br>Jumlah Transaksi: ${d.tx?.length}<br>Iuran ${m}: ${lunas} Lunas dari ${d.members?.length}<br>Terakhir Sync: ${new Date().toLocaleString('id-ID')}`;
+ }).catch(e=> document.getElementById('fbCheck').innerHTML='Gagal baca Firebase: '+e.message);
+}
+function disconnectFirebase(){ if(data.firebase) data.firebase.use=false; save(); document.getElementById('fbStatus').textContent='Status: Belum Terkoneksi (Pakai LocalStorage)'; alert('Koneksi Firebase diputus, balik ke LocalStorage'); }
+document.getElementById('iuranBulan').value=new Date().toISOString().slice(0,7);
+document.getElementById('lapBulan').value=new Date().toISOString().slice(0,7);
+render();
+// auto-sync Firebase saat pertama buka, biar langsung konek tanpa klik apa-apa
+setTimeout(()=>{ if(data.firebase && data.firebase.use) syncFirebase(false); }, 800);
+</script>
+</body></html>
