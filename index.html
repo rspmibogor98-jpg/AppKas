@@ -3191,31 +3191,52 @@ table { max-width: 100%; }
 
 
 
-<!-- TABEL HP v2: rapi, kata tidak pecah di tengah, angka Rp utuh. Hanya HP, PC tidak berubah. -->
-<style id="table-fit-mobile-v2">
+
+
+<!-- TABEL HP v3: tiap baris jadi KARTU. Tidak ada yang kepotong / ketumpuk / perlu geser. Hanya HP, PC tidak berubah. -->
+<style id="table-card-mobile">
 @media (max-width: 640px){
-  table.min-w-\[640px\]{ min-width: 0 !important; width: 100% !important; }
-  table{ table-layout: fixed !important; }
-  table th, table td{ padding: 6px 4px !important; font-size: 11px !important; line-height: 1.4 !important; vertical-align: middle !important; }
-  /* KATA TIDAK BOLEH PECAH DI TENGAH: pecahnya hanya antar kata */
-  table th[data-col], table td[data-col]{ min-width: 0 !important; max-width: none !important; overflow: hidden !important; white-space: normal !important; word-break: normal !important; overflow-wrap: break-word !important; hyphens: none !important; }
-  /* Lebar kolom Iuran: No 7% | Nama 25% | Iuran 20% | Tgl 15% | Status 17% | Aksi 16% */
-  table th[data-col="center"], table td[data-col="center"]{ width: 7% !important; text-align: center !important; }
-  table th[data-col="left"], table td[data-col="name"]{ width: 25% !important; }
-  /* ANGKA RP JANGAN PECAH: Rp 100.000 harus 1 baris utuh */
-  table th[data-col="amount"], table td[data-col="amount"]{ width: 20% !important; white-space: nowrap !important; overflow-wrap: normal !important; word-break: keep-all !important; font-size: 11px !important; }
-  table th[data-col="date"], table td[data-col="date"]{ width: 15% !important; white-space: nowrap !important; font-size: 10px !important; }
-  table th[data-col="status"], table td[data-col="status"]{ width: 17% !important; }
-  /* Pil status utuh 1 baris, kecil */
-  table td[data-col="status"] span{ white-space: nowrap !important; font-size: 10px !important; padding: 4px 6px !important; display: inline-flex !important; align-items: center !important; gap: 2px !important; border-radius: 999px !important; }
-  table th[data-col="action"], table td[data-col="action"]{ width: 16% !important; }
-  table td[data-col="action"] > div{ flex-wrap: wrap !important; gap: 4px !important; }
-  table td[data-col="action"] button{ padding: 5px 6px !important; font-size: 10px !important; white-space: nowrap !important; }
-  /* Deskripsi: max 2 baris, potong rapi pakai ... bukan pecah berantakan */
-  table td[data-col="desc"]{ white-space: normal !important; }
-  table td[data-col="desc"] > p{ white-space: normal !important; overflow: hidden !important; display: -webkit-box !important; -webkit-line-clamp: 2 !important; -webkit-box-orient: vertical !important; }
-  div.overflow-x-auto{ overflow-x: hidden !important; }
+  div.overflow-x-auto{ overflow: visible !important; }
+  table{ display: block !important; width: 100% !important; min-width: 0 !important; table-layout: auto !important; }
+  table thead{ display: none !important; }
+  table tbody{ display: block !important; width: 100% !important; }
+  /* 1 baris = 1 kartu putih */
+  table tbody tr{ display: block !important; width: 100% !important; box-sizing: border-box !important; background: #fff !important; border: 1px solid #E5E7EB !important; border-radius: 12px !important; padding: 10px 12px !important; margin: 0 0 10px 0 !important; box-shadow: 0 1px 2px rgba(0,0,0,.04) !important; }
+  /* 1 kolom = 1 baris di dalam kartu: label kiri, isi kanan. Isi boleh turun ke bawah, TIDAK dipotong. */
+  table tbody td{ display: flex !important; align-items: flex-start !important; gap: 8px !important; width: 100% !important; box-sizing: border-box !important; padding: 3px 0 !important; border: 0 !important; font-size: 12px !important; line-height: 1.45 !important; text-align: left !important; white-space: normal !important; overflow: visible !important; word-break: normal !important; overflow-wrap: break-word !important; }
+  table tbody td::before{ content: "" !important; flex: 0 0 88px !important; font-size: 11px !important; font-weight: 700 !important; color: #6B7280 !important; text-align: left !important; }
+  /* Label per kolom */
+  table tbody td[data-col="name"]::before{ content: "Nama" !important; }
+  table tbody td[data-col="status"]::before{ content: "Status" !important; }
+  table tbody td[data-col="desc"]::before{ content: "Keterangan" !important; }
+  table tbody td[data-col="left"]::before{ content: "Kategori" !important; }
+  /* No vs Jenis: tabel Iuran punya kolom Status, tabel Transaksi tidak */
+  table:has(th[data-col="status"]) tbody td[data-col="center"]::before{ content: "No" !important; }
+  table:not(:has(th[data-col="status"])) tbody td[data-col="center"]::before{ content: "Jenis" !important; }
+  /* Iuran vs Jumlah, Tgl Bayar vs Tanggal */
+  table:has(th[data-col="status"]) tbody td[data-col="amount"]::before{ content: "Iuran" !important; }
+  table:not(:has(th[data-col="status"])) tbody td[data-col="amount"]::before{ content: "Jumlah" !important; }
+  table:has(th[data-col="status"]) tbody td[data-col="date"]::before{ content: "Tgl Bayar" !important; }
+  table:not(:has(th[data-col="status"])) tbody td[data-col="date"]::before{ content: "Tanggal" !important; }
+  /* Baris nama jadi judul kartu, lebih tebal */
+  table tbody td[data-col="name"]{ font-size: 13px !important; font-weight: 700 !important; color: #111827 !important; }
+  /* Angka Rp utuh 1 baris (kartu lebar, jadi muat), tebal */
+  table tbody td[data-col="amount"]{ font-weight: 700 !important; color: #111827 !important; }
+  table tbody td[data-col="amount"] > *, table tbody td[data-col="amount"]{ white-space: nowrap !important; }
+  /* Keterangan: tampil FULL, jangan dipotong 2 baris, kata jangan pecah tengah */
+  table tbody td[data-col="desc"] > p{ display: block !important; -webkit-line-clamp: unset !important; -webkit-box-orient: unset !important; overflow: visible !important; white-space: normal !important; word-break: normal !important; overflow-wrap: break-word !important; }
+  /* Baris tombol Aksi: tanpa label, tombol sejajar rapi */
+  table tbody td[data-col="action"]{ padding-top: 6px !important; }
+  table tbody td[data-col="action"]::before{ display: none !important; }
+  table tbody td[data-col="action"] > div{ flex-wrap: wrap !important; gap: 6px !important; }
+  table tbody td[data-col="action"] button{ padding: 7px 10px !important; font-size: 11px !important; white-space: nowrap !important; }
+  /* Pil status utuh */
+  table tbody td[data-col="status"] span{ white-space: nowrap !important; font-size: 11px !important; padding: 4px 8px !important; }
+  /* Baris "Tidak ada data" tetap 1 kartu polos tanpa label */
+  table tbody tr td[colspan]{ display: block !important; text-align: center !important; }
+  table tbody tr td[colspan]::before{ display: none !important; }
 }
 </style>
 </body>
 </html>
+
