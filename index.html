@@ -3189,22 +3189,32 @@ table { max-width: 100%; }
 })();
 </script>
 
-<!-- TABEL HP: muat selebar layar, tidak perlu geser ke kiri. Hanya HP, PC tidak berubah. -->
-<style id="table-fit-mobile">
+
+
+<!-- TABEL HP v2: rapi, kata tidak pecah di tengah, angka Rp utuh. Hanya HP, PC tidak berubah. -->
+<style id="table-fit-mobile-v2">
 @media (max-width: 640px){
-  /* Buka kunci lebar minimum tabel (640px) yang bikin kepotong di HP */
   table.min-w-\[640px\]{ min-width: 0 !important; width: 100% !important; }
-  table{ table-layout: auto !important; }
-  table th, table td{ padding: 6px 4px !important; font-size: 12px !important; line-height: 1.35 !important; }
-  /* Semua kolom boleh mengecil + teks boleh turun ke baris bawah, bukan dipaksa 1 baris */
-  table th[data-col], table td[data-col]{ min-width: 0 !important; max-width: none !important; white-space: normal !important; overflow: visible !important; word-break: break-word !important; overflow-wrap: anywhere !important; }
-  table td[data-col="desc"] > p{ white-space: normal !important; overflow: visible !important; display: block !important; -webkit-line-clamp: unset !important; }
-  /* Kolom No dipersempit, kolom Aksi tombolnya boleh turun ke bawah */
-  table th[data-col="center"], table td[data-col="center"]{ width: 28px !important; }
-  table td[data-col="action"] > div{ flex-wrap: wrap !important; }
-  table td[data-col="action"] button{ padding: 6px 7px !important; font-size: 11px !important; }
-  /* Bungkus tabel jangan maksa scroll horizontal di HP */
-  div.overflow-x-auto{ overflow-x: visible !important; }
+  table{ table-layout: fixed !important; }
+  table th, table td{ padding: 6px 4px !important; font-size: 11px !important; line-height: 1.4 !important; vertical-align: middle !important; }
+  /* KATA TIDAK BOLEH PECAH DI TENGAH: pecahnya hanya antar kata */
+  table th[data-col], table td[data-col]{ min-width: 0 !important; max-width: none !important; overflow: hidden !important; white-space: normal !important; word-break: normal !important; overflow-wrap: break-word !important; hyphens: none !important; }
+  /* Lebar kolom Iuran: No 7% | Nama 25% | Iuran 20% | Tgl 15% | Status 17% | Aksi 16% */
+  table th[data-col="center"], table td[data-col="center"]{ width: 7% !important; text-align: center !important; }
+  table th[data-col="left"], table td[data-col="name"]{ width: 25% !important; }
+  /* ANGKA RP JANGAN PECAH: Rp 100.000 harus 1 baris utuh */
+  table th[data-col="amount"], table td[data-col="amount"]{ width: 20% !important; white-space: nowrap !important; overflow-wrap: normal !important; word-break: keep-all !important; font-size: 11px !important; }
+  table th[data-col="date"], table td[data-col="date"]{ width: 15% !important; white-space: nowrap !important; font-size: 10px !important; }
+  table th[data-col="status"], table td[data-col="status"]{ width: 17% !important; }
+  /* Pil status utuh 1 baris, kecil */
+  table td[data-col="status"] span{ white-space: nowrap !important; font-size: 10px !important; padding: 4px 6px !important; display: inline-flex !important; align-items: center !important; gap: 2px !important; border-radius: 999px !important; }
+  table th[data-col="action"], table td[data-col="action"]{ width: 16% !important; }
+  table td[data-col="action"] > div{ flex-wrap: wrap !important; gap: 4px !important; }
+  table td[data-col="action"] button{ padding: 5px 6px !important; font-size: 10px !important; white-space: nowrap !important; }
+  /* Deskripsi: max 2 baris, potong rapi pakai ... bukan pecah berantakan */
+  table td[data-col="desc"]{ white-space: normal !important; }
+  table td[data-col="desc"] > p{ white-space: normal !important; overflow: hidden !important; display: -webkit-box !important; -webkit-line-clamp: 2 !important; -webkit-box-orient: vertical !important; }
+  div.overflow-x-auto{ overflow-x: hidden !important; }
 }
 </style>
 </body>
